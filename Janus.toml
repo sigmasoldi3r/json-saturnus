@@ -1,0 +1,9 @@
+type = "lib"
+
+[project]
+name = "json"
+description = "Json parsing and serialization for Saturnus"
+author = "Pablo <sigmasoldi3r> Blanco"
+version = "1.0.0"
+
+[dependencies]

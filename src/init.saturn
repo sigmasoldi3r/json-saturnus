@@ -1,0 +1,217 @@
+use { Object } in std;
+let JSON_NULL = {};
+
+fn parse(text) {
+  let i = 1;
+  let len = #?text;
+  let now = () => text->sub(i, i);
+  fn blank() {
+    let ch = now();
+    return ch == " " or ch == "\n" or ch == "\t" or ch == "\r";
+  }
+  fn consume(n) {
+    i += (n ?? 1);
+    if i > len {
+      panic!("Attempting to parse past EOF");
+    }
+  }
+  fn consume_blank() {
+    loop {
+      if not blank() {
+        return ();
+      }
+      consume();
+    }
+  }
+  fn syntax_error(ex) {
+    let add = {
+      if ex <> () {
+        return "expected '" ++ ex ++ "' but ";
+      }
+      return "";
+    };
+    panic!("Unexpected character at " ++ i ++ ", " ++ add ++ "found '" ++ now() ++ "' (around '" ++ text->sub(i-10,i+10)->gsub("\r?\n", "\\n") ++ "')");
+  }
+  fn parse_string() {
+    if now() <> "\"" {
+      syntax_error("\"");
+    }
+    consume();
+    let value = [];
+    loop {
+      let ch = now();
+      if ch == "\"" and text->sub(i-1, i) <> "\\\"" {
+        consume();
+        return table.concat(value, "");
+      }
+      value[#?value+1] = ch;
+      i += 1;
+    }
+  }
+  let parse_any;
+  fn parse_array() {
+    if now() <> "[" {
+      syntax_error();
+    }
+    consume();
+    let arr = [];
+    loop {
+      consume_blank();
+      if now() == "]" {
+        consume();
+        return arr;
+      }
+      if now() == "," {
+        consume();
+        consume_blank();
+      }
+      arr[#?arr+1] = parse_any();
+    }
+  }
+  fn parse_bool() {
+    if now() <> "f" and now() <> "t" {
+      syntax_error("true or false");
+    }
+    if now() == "t" {
+      consume(4);
+      return true;
+    }
+    consume(5);
+    return false;
+  }
+  fn parse_object() {
+    if now() <> "{" {
+      syntax_error("{");
+    }
+    consume();
+    let tbl = {};
+    loop {
+      consume_blank();
+      if now() == "}" {
+        consume();
+        return tbl;
+      }
+      if now() == "," {
+        consume();
+        consume_blank();
+      }
+      if now() <> "\"" {
+        syntax_error("key (\")");
+      }
+      let key = parse_string();
+      consume_blank();
+      if now() <> ":" {
+        syntax_error(":");
+      }
+      consume();
+      consume_blank();
+      tbl[key] = parse_any();
+    }
+  }
+  fn is_numeric() {
+    let ch = now();
+    let r = ch->match("[0-9.-]");
+    return r <> ();
+  }
+  fn parse_number() {
+    if not is_numeric() {
+      syntax_error("number");
+    }
+    let value = "";
+    loop {
+      if not is_numeric() {
+        return tonumber(value);
+      }
+      value ++= now();
+      consume();
+    }
+  }
+  fn parse_null() {
+    if text->sub(i, i+4) == "null" {
+      consume(4);
+      if not blank() {
+        syntax_error();
+      }
+      return JSON_NULL;
+    }
+    syntax_error();
+  }
+  parse_any = () => {
+    loop {
+      let ch = now();
+      if ch == "\"" {
+        return parse_string();
+      } else if ch == "{" {
+        return parse_object();
+      } else if ch == "[" {
+        return parse_array();
+      } else if is_numeric() {
+        return parse_number();
+      } else if ch == "t" or ch == "f" {
+        return parse_bool();
+      } else if ch == "n" {
+        return parse_null();
+      } else if not blank() {
+        syntax_error("any of object, array, null, string or number");
+      }
+      consume_blank();
+    }
+  };
+  return parse_any();
+}
+
+fn stringify(val, n, i) {
+  i = i ?? 0;
+  let t = type(val);
+  if t == "table" {
+    if val[1] <> () {
+      if #?val == 0 {
+        if n <> () {
+          return "[ ]";
+        }
+        return "[]";
+      }
+      if n <> () {
+        let body = "";
+        for (_, v) in Object.entries(val) {
+          body ++= (" ")->rep(n * (i + 1)) ++ to_json(v, n, i+1) ++ ",\n";
+        }
+        body = body->sub(1, -3);
+        return "[\n" ++ body ++ "\n" ++ (" ")->rep(n * i) ++ "]";
+      }
+      let body = "";
+      for (_, v) in Object.entries(val) {
+        body ++= to_json(v, n, i + 1) ++ ",";
+      }
+      return "[" ++ body->sub(1, -2) ++ "]";
+    } else {
+      if n <> () {
+        let body = "";
+        for (k, v) in Object.entries(val) {
+          body ++= (" ")->rep(n * (i + 1)) ++ to_json(tostring(k)) ++ ": " ++ to_json(v, n, i+1) ++ ",\n";
+        }
+        if #?body == 0 {
+          return "{ }";
+        }
+        body = body->sub(1, -3);
+        return "{\n" ++ body ++ "\n" ++ (" ")->rep(n * i) ++ "}";
+      }
+      let body = "";
+      for (k, v) in Object.entries(val) {
+        body ++= to_json(tostring(k)) ++ ": " ++ to_json(v, n, i + 1) ++ ",";
+      }
+      if #?body == 0 {
+        return "{}";
+      }
+      return "{" ++ body->sub(1, -2) ++ "}";
+    }
+  } if t == "string" {
+    return "\"" ++ val->gsub("\n", "\\n")->gsub("\r", "\\r")->gsub("\"", "\\\"") ++ "\"";
+  } else if val == () {
+    return "null";
+  } else {
+    return tostring(val);
+  }
+}
+
+return { stringify, parse, NULL: JSON_NULL };
