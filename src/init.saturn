@@ -174,21 +174,21 @@ fn stringify(val, n, i) {
       if n <> () {
         let body = "";
         for (_, v) in Object.entries(val) {
-          body ++= (" ")->rep(n * (i + 1)) ++ to_json(v, n, i+1) ++ ",\n";
+          body ++= (" ")->rep(n * (i + 1)) ++ stringify(v, n, i+1) ++ ",\n";
         }
         body = body->sub(1, -3);
         return "[\n" ++ body ++ "\n" ++ (" ")->rep(n * i) ++ "]";
       }
       let body = "";
       for (_, v) in Object.entries(val) {
-        body ++= to_json(v, n, i + 1) ++ ",";
+        body ++= stringify(v, n, i + 1) ++ ",";
       }
       return "[" ++ body->sub(1, -2) ++ "]";
     } else {
       if n <> () {
         let body = "";
         for (k, v) in Object.entries(val) {
-          body ++= (" ")->rep(n * (i + 1)) ++ to_json(tostring(k)) ++ ": " ++ to_json(v, n, i+1) ++ ",\n";
+          body ++= (" ")->rep(n * (i + 1)) ++ stringify(tostring(k)) ++ ": " ++ stringify(v, n, i+1) ++ ",\n";
         }
         if #?body == 0 {
           return "{ }";
@@ -198,7 +198,7 @@ fn stringify(val, n, i) {
       }
       let body = "";
       for (k, v) in Object.entries(val) {
-        body ++= to_json(tostring(k)) ++ ": " ++ to_json(v, n, i + 1) ++ ",";
+        body ++= stringify(tostring(k)) ++ ": " ++ stringify(v, n, i + 1) ++ ",";
       }
       if #?body == 0 {
         return "{}";
